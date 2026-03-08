@@ -26,6 +26,7 @@ def load_apps_config(path: Path):
                 "notes": entry.get("notes"),
                 "gamedva_slug": entry["gamedva_slug"].strip("/"),
                 "gamedva_url": entry.get("gamedva_url"),
+                "mobilism_url": entry.get("mobilism_url"),
             }
         )
     return apps
@@ -41,6 +42,12 @@ def normalize_slug_from_url(url: str | None):
     return slug.split("/")[-1].lower() if slug else None
 
 
+def normalize_name(name: str | None):
+    if not name:
+        return ""
+    return re.sub(r"[^a-z0-9]+", "", name.lower())
+
+
 def parse_html_source(path: Path):
     soup = BeautifulSoup(path.read_text(encoding="utf-8"), "html.parser")
     cards = soup.select("div.card")
@@ -54,19 +61,26 @@ def parse_html_source(path: Path):
         official_match = re.search(r"Official:\s*([^\s<]+)", versions_text)
         current_version = current_match.group(1) if current_match else None
         official_version = official_match.group(1) if official_match else None
-        links = card.select("a")
-        gamedva_link = links[-1]["href"] if links else None
-        slug = normalize_slug_from_url(gamedva_link)
         entries.append(
             {
-                "slug": slug,
                 "name": name,
                 "current_version": current_version,
                 "latest_version": official_version,
-                "gamedva_url": gamedva_link,
             }
         )
     return entries
+
+
+def version_present_on_page(session, url: str | None, version: str | None):
+    if not url or not version:
+        return False
+    try:
+        response = session.get(url, timeout=15)
+    except requests.RequestException:
+        return False
+    if response.status_code != 200:
+        return False
+    return version in response.text
 
 
 def extract_version_from_string(text: str):
@@ -115,7 +129,15 @@ def build_snapshot(entries, timestamp: str):
 
 
 def summarize_entries(entries):
-    summary = {"available": 0, "needs_update": 0, "unavailable": 0, "new": 0, "updated": 0, "unchanged": 0}
+    summary = {
+        "available": 0,
+        "needs_update": 0,
+        "unavailable": 0,
+        "unknown": 0,
+        "new": 0,
+        "updated": 0,
+        "unchanged": 0,
+    }
     for entry in entries:
         status = entry.get("status")
         change = entry.get("change", "unchanged")
@@ -161,6 +183,7 @@ def render_report(snapshot, previous_snapshot_path: Path | None, report_path: Pa
         "needs_update": "Needs Update",
         "available": "Up to Date",
         "unavailable": "Unavailable",
+        "unknown": "Availability unclear",
     }
     change_labels = {
         "new": "New entry",
@@ -230,6 +253,7 @@ def render_report(snapshot, previous_snapshot_path: Path | None, report_path: Pa
         .status-tag.needs-update {{ background:#ffe5de; color:#c0351a; }}
         .status-tag.available {{ background:#e9f5ff; color:#0d4f7a; }}
         .status-tag.unavailable {{ background:#fff4cc; color:#a8701b; }}
+        .status-tag.unknown {{ background:#d9dbff; color:#2b2b7a; }}
         .change-tag {{ font-size:0.85rem; color:#555; }}
         .notes {{ margin-top:10px; font-size:0.85rem; color:#666; }}
         .actions {{ display:flex; align-items:flex-start; min-width:110px; }}
@@ -279,27 +303,43 @@ def main():
         sys.exit(0)
 
     apps = load_apps_config(args.config)
+    name_map = {normalize_name(app["name"]): app for app in apps}
     entries = []
     if args.html_source:
         html_cards = parse_html_source(args.html_source)
+        session = requests.Session()
         for card in html_cards:
             latest_version = card.get("latest_version")
             current_version = card.get("current_version")
-            if latest_version and current_version and latest_version == current_version:
-                status = "available"
-            elif latest_version:
-                status = "needs_update"
-            else:
-                status = "unavailable"
+            normalized_name = normalize_name(card.get("name"))
+            config_entry = name_map.get(normalized_name)
+            gamedva_url = config_entry.get("gamedva_url") if config_entry else None
+            gamedva_checked = bool(gamedva_url and latest_version)
+            gamedva_available = version_present_on_page(session, gamedva_url, latest_version) if gamedva_checked else False
+            mobilism_url = config_entry.get("mobilism_url") if config_entry else None
+            mobilism_checked = bool(mobilism_url and latest_version)
+            mobilism_available = version_present_on_page(session, mobilism_url, latest_version) if mobilism_checked else False
+            needs_update = False
+            if gamedva_checked and mobilism_checked:
+                needs_update = (not gamedva_available) and (not mobilism_available)
+            availability = gamedva_available or mobilism_available
+            status = "needs_update" if needs_update else ("available" if availability else "unknown")
+            note_parts = []
+            if gamedva_checked:
+                note_parts.append(f"gamedva={'yes' if gamedva_available else 'no'}")
+            if mobilism_checked:
+                note_parts.append(f"mobilism={'yes' if mobilism_available else 'no'}")
+            if not config_entry:
+                note_parts.append("config missing")
             entries.append(
                 {
-                    "name": card.get("name") or "Unknown app",
-                    "package": None,
+                    "name": card.get("name") or (config_entry and config_entry.get("name")) or "Unknown app",
+                    "package": config_entry.get("package") if config_entry else None,
                     "current_version": current_version,
                     "latest_version": latest_version,
                     "status": status,
-                    "gamedva_url": card.get("gamedva_url"),
-                    "notes": None,
+                    "gamedva_url": gamedva_url,
+                    "notes": "; ".join(note_parts) if note_parts else None,
                 }
             )
     else:
