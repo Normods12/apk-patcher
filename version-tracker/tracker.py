@@ -44,53 +44,29 @@ def normalize_slug_from_url(url: str | None):
 def parse_html_source(path: Path):
     soup = BeautifulSoup(path.read_text(encoding="utf-8"), "html.parser")
     cards = soup.select("div.card")
-    parsed = {}
+    entries = []
     for card in cards:
+        title_tag = card.select_one(".title")
+        name = title_tag.text.strip() if title_tag else None
         versions_tag = card.select_one(".versions")
         versions_text = versions_tag.get_text(" ", strip=True) if versions_tag else ""
+        current_match = re.search(r"You have:\s*([^\s<]+)", versions_text)
         official_match = re.search(r"Official:\s*([^\s<]+)", versions_text)
+        current_version = current_match.group(1) if current_match else None
         official_version = official_match.group(1) if official_match else None
         links = card.select("a")
         gamedva_link = links[-1]["href"] if links else None
         slug = normalize_slug_from_url(gamedva_link)
-        if not slug:
-            continue
-        parsed[slug] = {
-            "latest_version": official_version,
-            "gamedva_url": gamedva_link,
-        }
-    return parsed
-
-
-def build_entries_from_html(apps, html_lookup):
-    entries = []
-    missing = []
-    for app in apps:
-        slug = app["gamedva_slug"].lower()
-        html_entry = html_lookup.get(slug)
-        if not html_entry:
-            missing.append(app["name"])
-            continue
-        latest_version = html_entry.get("latest_version")
-        current_version = app.get("current_version")
-        if latest_version and current_version and latest_version == current_version:
-            status = "available"
-        elif latest_version:
-            status = "needs_update"
-        else:
-            status = "unavailable"
         entries.append(
             {
-                "name": app.get("name"),
-                "package": app.get("package"),
+                "slug": slug,
+                "name": name,
                 "current_version": current_version,
-                "latest_version": latest_version,
-                "status": status,
-                "gamedva_url": html_entry.get("gamedva_url"),
-                "notes": app.get("notes"),
+                "latest_version": official_version,
+                "gamedva_url": gamedva_link,
             }
         )
-    return entries, missing
+    return entries
 
 
 def extract_version_from_string(text: str):
@@ -305,10 +281,27 @@ def main():
     apps = load_apps_config(args.config)
     entries = []
     if args.html_source:
-        html_lookup = parse_html_source(args.html_source)
-        entries, missing = build_entries_from_html(apps, html_lookup)
-        if missing:
-            print(f"Skipping {len(missing)} apps not present in HTML source: {', '.join(missing)}")
+        html_cards = parse_html_source(args.html_source)
+        for card in html_cards:
+            latest_version = card.get("latest_version")
+            current_version = card.get("current_version")
+            if latest_version and current_version and latest_version == current_version:
+                status = "available"
+            elif latest_version:
+                status = "needs_update"
+            else:
+                status = "unavailable"
+            entries.append(
+                {
+                    "name": card.get("name") or "Unknown app",
+                    "package": None,
+                    "current_version": current_version,
+                    "latest_version": latest_version,
+                    "status": status,
+                    "gamedva_url": card.get("gamedva_url"),
+                    "notes": None,
+                }
+            )
     else:
         session = requests.Session()
         for app in apps:
