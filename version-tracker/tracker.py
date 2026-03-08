@@ -5,6 +5,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from urllib.parse import quote_plus, urljoin
 
 import requests
 from bs4 import BeautifulSoup
@@ -13,33 +14,25 @@ VERSION_PATTERN = re.compile(r"[\d]+(?:[.\-][\d]+)*")
 
 
 def load_apps_config(path: Path):
+    if not path.exists():
+        return []
     raw = json.loads(path.read_text(encoding="utf-8"))
     apps = []
     for entry in raw:
-        if not entry.get("name") or not entry.get("gamedva_slug"):
-            raise ValueError("Each app entry must have at least `name` and `gamedva_slug`.")
+        if not entry.get("name"):
+            raise ValueError("Each app entry must specify a `name`.")
         apps.append(
             {
                 "name": entry["name"],
                 "package": entry.get("package"),
                 "current_version": entry.get("current_version"),
                 "notes": entry.get("notes"),
-                "gamedva_slug": entry["gamedva_slug"].strip("/"),
+                "gamedva_slug": (entry.get("gamedva_slug") or "").strip("/"),
                 "gamedva_url": entry.get("gamedva_url"),
                 "mobilism_url": entry.get("mobilism_url"),
             }
         )
     return apps
-
-
-def normalize_slug_from_url(url: str | None):
-    if not url:
-        return None
-    parsed = requests.utils.urlparse(url)
-    if not parsed.path:
-        return None
-    slug = parsed.path.strip("/")
-    return slug.split("/")[-1].lower() if slug else None
 
 
 def normalize_name(name: str | None):
@@ -82,6 +75,56 @@ def version_present_on_page(session, url: str | None, version: str | None):
         return False
     return version in response.text
 
+
+def search_gamedva(session, name: str | None):
+    if not name:
+        return None
+    params = {"s": name}
+    try:
+        response = session.get("https://gamedva.com/", params=params, timeout=15)
+    except requests.RequestException:
+        return None
+    if response.status_code != 200:
+        return None
+    soup = BeautifulSoup(response.text, "html.parser")
+    candidate = soup.select_one("article .entry-title a")
+    if candidate and candidate.get("href"):
+        return candidate["href"]
+    for link in soup.select("a[href*='gamedva.com/']"):
+        href = link.get("href")
+        if href:
+            return href
+    return None
+
+
+def search_mobilism(session, name: str | None):
+    if not name:
+        return None
+    params = {"search": name}
+    try:
+        response = session.get("https://mobilism.org/search.php", params=params, timeout=15)
+    except requests.RequestException:
+        return None
+    if response.status_code != 200:
+        return None
+    soup = BeautifulSoup(response.text, "html.parser")
+    anchor = soup.select_one("a[href*='viewtopic.php']")
+    if anchor and anchor.get("href"):
+        return urljoin("https://mobilism.org", anchor["href"])
+    return None
+
+
+def resolve_urls(session, app_name: str | None, config_entry):
+    gamedva_url = None
+    mobilism_url = None
+    if config_entry:
+        gamedva_url = config_entry.get("gamedva_url")
+        mobilism_url = config_entry.get("mobilism_url")
+    if not gamedva_url:
+        gamedva_url = search_gamedva(session, app_name)
+    if not mobilism_url:
+        mobilism_url = search_mobilism(session, app_name)
+    return gamedva_url, mobilism_url
 
 def extract_version_from_string(text: str):
     if not text:
@@ -208,6 +251,12 @@ def render_report(snapshot, previous_snapshot_path: Path | None, report_path: Pa
         change_label = change_labels.get(change, change.title())
         status_class = status.replace("_", "-")
         notes_html = f'<div class="notes">{escape(entry.get("notes"))}</div>' if entry.get("notes") else ""
+        action_links = []
+        if entry.get("gamedva_url"):
+            action_links.append(f'<a href="{escape(entry.get("gamedva_url"))}" target="_blank">gamedva</a>')
+        if entry.get("mobilism_url"):
+            action_links.append(f'<a href="{escape(entry.get("mobilism_url"))}" target="_blank">mobilism</a>')
+        actions_html = " ".join(action_links) or "no check URL"
         lines.append(
             f"""\
         <div class="{card_class}">
@@ -224,7 +273,7 @@ def render_report(snapshot, previous_snapshot_path: Path | None, report_path: Pa
                 {notes_html}
             </div>
             <div class="actions">
-                <a href="{escape(entry.get("gamedva_url"))}" target="_blank">gamedva</a>
+                {actions_html}
             </div>
         </div>"""
         )
@@ -313,22 +362,28 @@ def main():
             current_version = card.get("current_version")
             normalized_name = normalize_name(card.get("name"))
             config_entry = name_map.get(normalized_name)
-            gamedva_url = config_entry.get("gamedva_url") if config_entry else None
+            gamedva_url, mobilism_url = resolve_urls(session, card.get("name"), config_entry)
             gamedva_checked = bool(gamedva_url and latest_version)
             gamedva_available = version_present_on_page(session, gamedva_url, latest_version) if gamedva_checked else False
-            mobilism_url = config_entry.get("mobilism_url") if config_entry else None
             mobilism_checked = bool(mobilism_url and latest_version)
             mobilism_available = version_present_on_page(session, mobilism_url, latest_version) if mobilism_checked else False
             needs_update = False
+            status = "unknown"
             if gamedva_checked and mobilism_checked:
                 needs_update = (not gamedva_available) and (not mobilism_available)
+                status = "needs_update" if needs_update else "available"
             availability = gamedva_available or mobilism_available
-            status = "needs_update" if needs_update else ("available" if availability else "unknown")
+            if status == "unknown" and availability:
+                status = "available"
             note_parts = []
             if gamedva_checked:
                 note_parts.append(f"gamedva={'yes' if gamedva_available else 'no'}")
+            else:
+                note_parts.append("gamedva=not found")
             if mobilism_checked:
                 note_parts.append(f"mobilism={'yes' if mobilism_available else 'no'}")
+            else:
+                note_parts.append("mobilism=not found")
             if not config_entry:
                 note_parts.append("config missing")
             entries.append(
@@ -339,7 +394,8 @@ def main():
                     "latest_version": latest_version,
                     "status": status,
                     "gamedva_url": gamedva_url,
-                    "notes": "; ".join(note_parts) if note_parts else None,
+                    "mobilism_url": mobilism_url,
+                    "notes": "; ".join(note_parts),
                 }
             )
     else:

@@ -24,7 +24,7 @@ python version-tracker/tracker.py --config version-tracker/apps.json --html-sour
 The batch file under `scripts/` illustrates the same invocation so you can reuse it when you run the tracker manually.
 
 ## Customization tips
-- Add apps to `apps.json`. Each app can provide `name`, `package`, `current_version`, `gamedva_slug`, and (optionally) a `notes` field. If you want the tracker to check mobilism before declaring an update, also add the `mobilism_url` for that app so the script can confirm whether the latest version is listed there.
+- Add apps to `apps.json`. Each entry should have `name`, optional metadata, and—if you already know them—the `gamedva_url`/`mobilism_url` you want the tracker to check. If you omit those URLs, the tracker now performs the search itself (it queries `gamedva.com` and `mobilism.org` by name and uses the first result it finds), but supplying URLs still improves reliability.
 - If you prefer live checks instead of parsing HTML, skip `--html-source`. The tracker will fetch `https://gamedva.com/<gamedva_slug>` and try to extract the latest version automatically.
 - The HTML report template can be tweaked inside `tracker.py` should you need to match the styling of the notifications you already send.
 
