@@ -54,11 +54,18 @@ def parse_html_source(path: Path):
         official_match = re.search(r"Official:\s*([^\s<]+)", versions_text)
         current_version = current_match.group(1) if current_match else None
         official_version = official_match.group(1) if official_match else None
+        gamedva_link = None
+        for link in card.select("a"):
+            href = link.get("href")
+            if href and "gamedva.com" in href:
+                gamedva_link = href
+                break
         entries.append(
             {
                 "name": name,
                 "current_version": current_version,
                 "latest_version": official_version,
+                "gamedva_url": gamedva_link,
             }
         )
     return entries
@@ -114,12 +121,9 @@ def search_mobilism(session, name: str | None):
     return None
 
 
-def resolve_urls(session, app_name: str | None, config_entry):
-    gamedva_url = None
-    mobilism_url = None
-    if config_entry:
-        gamedva_url = config_entry.get("gamedva_url")
-        mobilism_url = config_entry.get("mobilism_url")
+def resolve_urls(session, app_name: str | None, config_entry, card_gamedva_url: str | None = None):
+    gamedva_url = card_gamedva_url or (config_entry and config_entry.get("gamedva_url"))
+    mobilism_url = config_entry and config_entry.get("mobilism_url")
     if not gamedva_url:
         gamedva_url = search_gamedva(session, app_name)
     if not mobilism_url:
@@ -175,8 +179,6 @@ def summarize_entries(entries):
     summary = {
         "available": 0,
         "needs_update": 0,
-        "unavailable": 0,
-        "unknown": 0,
         "new": 0,
         "updated": 0,
         "unchanged": 0,
@@ -202,7 +204,6 @@ def compare_with_previous(current_entries, previous_entries):
         key = (entry.get("name"), entry.get("package"))
         prior = prev_map.get(key)
         if not prior:
-            entry["change"] = "new"
             continue
         if entry.get("latest_version") and prior.get("latest_version") and entry["latest_version"] != prior["latest_version"]:
             entry["change"] = "updated"
@@ -225,11 +226,8 @@ def render_report(snapshot, previous_snapshot_path: Path | None, report_path: Pa
     status_labels = {
         "needs_update": "Needs Update",
         "available": "Up to Date",
-        "unavailable": "Unavailable",
-        "unknown": "Availability unclear",
     }
     change_labels = {
-        "new": "New entry",
         "updated": "Version changed since last run",
         "unchanged": "No change since previous snapshot",
     }
@@ -250,7 +248,6 @@ def render_report(snapshot, previous_snapshot_path: Path | None, report_path: Pa
         status_label = status_labels.get(status, status.replace("_", " ").title())
         change_label = change_labels.get(change, change.title())
         status_class = status.replace("_", "-")
-        notes_html = f'<div class="notes">{escape(entry.get("notes"))}</div>' if entry.get("notes") else ""
         action_links = []
         if entry.get("gamedva_url"):
             action_links.append(f'<a href="{escape(entry.get("gamedva_url"))}" target="_blank">gamedva</a>')
@@ -270,7 +267,6 @@ def render_report(snapshot, previous_snapshot_path: Path | None, report_path: Pa
                     <span class="status-tag {status_class}">{escape(status_label)}</span>
                     <span class="change-tag">{escape(change_label)}</span>
                 </div>
-                {notes_html}
             </div>
             <div class="actions">
                 {actions_html}
@@ -301,10 +297,7 @@ def render_report(snapshot, previous_snapshot_path: Path | None, report_path: Pa
         .status-tag {{ font-size:1rem; font-weight:700; padding:6px 14px; border-radius:999px; }}
         .status-tag.needs-update {{ background:#ffe5de; color:#c0351a; }}
         .status-tag.available {{ background:#e9f5ff; color:#0d4f7a; }}
-        .status-tag.unavailable {{ background:#fff4cc; color:#a8701b; }}
-        .status-tag.unknown {{ background:#d9dbff; color:#2b2b7a; }}
         .change-tag {{ font-size:0.85rem; color:#555; }}
-        .notes {{ margin-top:10px; font-size:0.85rem; color:#666; }}
         .actions {{ display:flex; align-items:flex-start; min-width:110px; }}
         .actions a {{ font-size:0.9rem; color:#1761d8; text-decoration:none; font-weight:600; }}
         footer {{ margin-top:25px; color:#666; font-size:0.85rem; }}
@@ -314,7 +307,7 @@ def render_report(snapshot, previous_snapshot_path: Path | None, report_path: Pa
     <header>
         <h1>Gamedva Version Snapshot</h1>
         <p class="summary">
-            run at {escape(snapshot["snapshot_at"])} · {len(snapshot["entries"])} apps tracked · updated: {summary.get("updated",0)}, still pending: {summary.get("needs_update",0)}, unavailable: {summary.get("unavailable",0)}
+            run at {escape(snapshot["snapshot_at"])} · {len(snapshot["entries"])} apps tracked · updated: {summary.get("updated",0)}, needs update: {summary.get("needs_update",0)}
         </p>
     </header>
     <section class="list">
@@ -362,30 +355,10 @@ def main():
             current_version = card.get("current_version")
             normalized_name = normalize_name(card.get("name"))
             config_entry = name_map.get(normalized_name)
-            gamedva_url, mobilism_url = resolve_urls(session, card.get("name"), config_entry)
-            gamedva_checked = bool(gamedva_url and latest_version)
-            gamedva_available = version_present_on_page(session, gamedva_url, latest_version) if gamedva_checked else False
-            mobilism_checked = bool(mobilism_url and latest_version)
-            mobilism_available = version_present_on_page(session, mobilism_url, latest_version) if mobilism_checked else False
-            needs_update = False
-            status = "unknown"
-            if gamedva_checked and mobilism_checked:
-                needs_update = (not gamedva_available) and (not mobilism_available)
-                status = "needs_update" if needs_update else "available"
-            availability = gamedva_available or mobilism_available
-            if status == "unknown" and availability:
-                status = "available"
-            note_parts = []
-            if gamedva_checked:
-                note_parts.append(f"gamedva={'yes' if gamedva_available else 'no'}")
-            else:
-                note_parts.append("gamedva=not found")
-            if mobilism_checked:
-                note_parts.append(f"mobilism={'yes' if mobilism_available else 'no'}")
-            else:
-                note_parts.append("mobilism=not found")
-            if not config_entry:
-                note_parts.append("config missing")
+            gamedva_url, mobilism_url = resolve_urls(session, card.get("name"), config_entry, card.get("gamedva_url"))
+            gamedva_available = bool(gamedva_url and latest_version and version_present_on_page(session, gamedva_url, latest_version))
+            mobilism_available = bool(mobilism_url and latest_version and version_present_on_page(session, mobilism_url, latest_version))
+            status = "available" if (gamedva_available or mobilism_available) else "needs_update"
             entries.append(
                 {
                     "name": card.get("name") or (config_entry and config_entry.get("name")) or "Unknown app",
@@ -395,7 +368,6 @@ def main():
                     "status": status,
                     "gamedva_url": gamedva_url,
                     "mobilism_url": mobilism_url,
-                    "notes": "; ".join(note_parts),
                 }
             )
     else:
