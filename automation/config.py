@@ -75,4 +75,7 @@ logging.basicConfig(
 )
 
 for _path in (INPUT_DIR, OUTPUT_DIR, LOG_DIR, LOCKS_DIR):
-    _path.mkdir(parents=True, exist_ok=True)
+    try:
+        _path.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Warning: Could not create directory {_path}: {e}")

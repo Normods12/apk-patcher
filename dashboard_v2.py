@@ -17,11 +17,10 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-# Add project root to sys.path
+# Add current directory to sys.path
 BASE_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = BASE_DIR.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
 # Load .env
 load_dotenv(BASE_DIR / ".env")
@@ -35,9 +34,14 @@ app = FastAPI(title="APK Patching Dashboard")
 INPUT_DIR = BASE_DIR / "Input-apk"
 OUTPUT_DIR = BASE_DIR / "Output-apk"
 DEX_DIR = BASE_DIR / "Dex-to-add"
-INPUT_DIR.mkdir(exist_ok=True)
-OUTPUT_DIR.mkdir(exist_ok=True)
-DEX_DIR.mkdir(exist_ok=True)
+LOG_DIR = BASE_DIR / "logs"
+LOCKS_DIR = BASE_DIR / "locks"
+
+for _path in (INPUT_DIR, OUTPUT_DIR, DEX_DIR, LOG_DIR, LOCKS_DIR):
+    try:
+        _path.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Warning: Could not create directory {_path}: {e}")
 
 # State
 class Job(BaseModel):
