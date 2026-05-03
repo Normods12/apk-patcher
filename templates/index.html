@@ -324,7 +324,7 @@
                     <div class="drop-zone" id="drop-zone">
                         <span class="drop-zone-icon">📁</span>
                         <span class="drop-zone-text">Drag & drop APK or click to upload</span>
-                        <input type="file" id="file-input" style="display: none" accept=".apk">
+                        <input type="file" id="file-input" style="display: none" accept=".apk" multiple>
                     </div>
                 </div>
 
@@ -424,14 +424,18 @@
 
         // File Upload
         dropZone.onclick = () => fileInput.click();
-        fileInput.onchange = (e) => uploadFile(e.target.files[0]);
+        fileInput.onchange = (e) => {
+            Array.from(e.target.files).forEach(file => uploadFile(file));
+        };
 
         dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('active'); };
         dropZone.ondragleave = () => dropZone.classList.remove('active');
         dropZone.ondrop = (e) => {
             e.preventDefault();
             dropZone.classList.remove('active');
-            if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0]);
+            Array.from(e.dataTransfer.files).forEach(file => {
+                if (file.name.toLowerCase().endsWith('.apk')) uploadFile(file);
+            });
         };
 
         let currentMode = 'local';
