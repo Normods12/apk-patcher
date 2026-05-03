@@ -378,7 +378,11 @@
     </div>
 
     <script>
-        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+        // Auto-detect secure or insecure websocket
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+        
+        let currentMode = 'local';
         const consoleEl = document.getElementById('console');
         const jobListEl = document.getElementById('job-list');
         const dropZone = document.getElementById('drop-zone');
@@ -456,8 +460,6 @@
                 if (file.name.toLowerCase().endsWith('.apk')) uploadFile(file);
             });
         };
-
-        let currentMode = 'local';
 
         function setMode(mode) {
             currentMode = mode;
