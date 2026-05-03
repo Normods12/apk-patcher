@@ -66,7 +66,39 @@ jobs:
           echo "DOWNLOAD_LINK=$LINK" >> $GITHUB_ENV
           echo "::notice ::APK Patched & Signed! Download: $LINK"
 
-      - name: Send result back (Optional)
-        if: always()
+      - name: Send Telegram Notification
+        if: always() && env.DOWNLOAD_LINK != ''
         run: |
-          echo "Job finished. Link: ${{ env.DOWNLOAD_LINK }}"
+          CHAT_ID="${{ github.event.client_payload.telegram_chat_id || secrets.TELEGRAM_CHAT_ID }}"
+          TOKEN="${{ github.event.client_payload.telegram_token || secrets.TELEGRAM_TOKEN }}"
+          FILE_URL="${{ github.event.client_payload.url || github.event.inputs.url }}"
+          
+          if [ -n "$TOKEN" ] && [ -n "$CHAT_ID" ]; then
+            curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
+              -d "chat_id=$CHAT_ID" \
+              -d "parse_mode=HTML" \
+              -d "disable_web_page_preview=false" \
+              --data-urlencode "text=<b>✅ APK Patched &amp; Signed!</b>
+
+📦 <b>File:</b> $FILE_URL
+
+📥 <a href='${{ env.DOWNLOAD_LINK }}'>Click here to Download from GoFile</a>"
+          fi
+
+      - name: Send Telegram Failure Notification
+        if: failure()
+        run: |
+          CHAT_ID="${{ github.event.client_payload.telegram_chat_id || secrets.TELEGRAM_CHAT_ID }}"
+          TOKEN="${{ github.event.client_payload.telegram_token || secrets.TELEGRAM_TOKEN }}"
+          FILE_URL="${{ github.event.client_payload.url || github.event.inputs.url }}"
+
+          if [ -n "$TOKEN" ] && [ -n "$CHAT_ID" ]; then
+            curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
+              -d "chat_id=$CHAT_ID" \
+              -d "parse_mode=HTML" \
+              --data-urlencode "text=❌ <b>GitHub Patching Failed!</b>
+
+📦 <b>File:</b> $FILE_URL
+
+⚠️ Please check GitHub Actions logs for details."
+          fi
