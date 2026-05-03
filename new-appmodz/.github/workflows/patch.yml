@@ -1,0 +1,72 @@
+name: APK Patcher Automation
+
+on:
+  repository_dispatch:
+    types: [patch_apk]
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Direct Link to APK'
+        required: true
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install Dependencies
+        run: |
+          pip install requests python-dotenv
+
+      - name: Download APK
+        run: |
+          # Use the URL from the dispatch event or manual input
+          URL="${{ github.event.client_payload.url || github.event.inputs.url }}"
+          echo "Downloading from $URL"
+          mkdir -p Input-apk
+          curl -L -o "Input-apk/app.apk" "$URL"
+
+      - name: Process APK (Patch & Sign)
+        run: |
+          # 1. Download uber-apk-signer if not in repo
+          mkdir -p tools
+          curl -L -o tools/uber-apk-signer.jar https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar
+          
+          # 2. Run the patcher
+          # We'll use a simplified version of the script for the CI
+          python replace_last_dex.py --input-dir Input-apk --output-dir Output-apk --signer tools/uber-apk-signer.jar
+
+      - name: Upload to GoFile
+        id: upload
+        run: |
+          # Small script to upload and get the link
+          PROCESSED_FILE=$(ls Output-apk/*.apk | head -n 1)
+          echo "Uploading $PROCESSED_FILE"
+          
+          # Get best server
+          SERVER=$(curl -s https://api.gofile.io/servers | jq -r '.data.servers[0].name')
+          
+          # Upload
+          RESPONSE=$(curl -F "file=@$PROCESSED_FILE" "https://$SERVER.gofile.io/uploadFile")
+          LINK=$(echo $RESPONSE | jq -r '.data.downloadPage')
+          
+          echo "DOWNLOAD_LINK=$LINK" >> $GITHUB_ENV
+          echo "::notice ::APK Patched & Signed! Download: $LINK"
+
+      - name: Send result back (Optional)
+        if: always()
+        run: |
+          echo "Job finished. Link: ${{ env.DOWNLOAD_LINK }}"

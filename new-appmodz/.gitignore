@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.pyc
+Input-apk/
+Output-apk/
+input-apks/
+output-apks/
+telegram_state.json
+node_modules/
+.vscode/
+.idea/
+.DS_Store
+*.apk
+*.dex
+!Dex-to-add/classes.dex
