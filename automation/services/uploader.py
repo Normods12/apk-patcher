@@ -58,3 +58,32 @@ class FileUploader:
         except Exception as e:
             logging.exception(f"FileUploader Exception: {e}")
             return None
+
+    @staticmethod
+    def upload_to_catbox(file_path: Path) -> str:
+        """
+        Uploads a file to Catbox.moe and returns a DIRECT download link.
+        Perfect for GitHub Actions to download from.
+        """
+        try:
+            logging.info(f"[*] Uploading {file_path.name} to Catbox...")
+            url = "https://catbox.moe/user/api.php"
+            with open(file_path, "rb") as f:
+                payload = {
+                    "reqtype": "fileupload",
+                    "userhash": "" # Leave empty for anonymous
+                }
+                files = {"fileToUpload": f}
+                response = requests.post(url, data=payload, files=files, timeout=600)
+                response.raise_for_status()
+                
+            link = response.text.strip()
+            if link.startswith("https://"):
+                logging.info(f"[OK] Catbox Upload successful: {link}")
+                return link
+            else:
+                logging.error(f"[!] Catbox Error: {link}")
+                return None
+        except Exception as e:
+            logging.exception(f"Catbox Upload Exception: {e}")
+            return None

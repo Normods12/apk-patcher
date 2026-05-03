@@ -223,9 +223,9 @@ async def upload_apk(file: UploadFile = File(...), mode: str = Form("local")):
 async def auto_cloud_task(job_id: str, file_path: Path):
     job = jobs[job_id]
     try:
-        # 1. Upload to GoFile first to get a link for GitHub
-        logger.info(f"[*] AUTO-CLOUD: Uploading {file_path.name} to GoFile for GitHub...")
-        temp_link = FileUploader.upload_file(file_path)
+        # 1. Upload to Catbox (Direct Link) first to get a link for GitHub
+        logger.info(f"[*] AUTO-CLOUD: Uploading {file_path.name} to Catbox for GitHub...")
+        temp_link = FileUploader.upload_to_catbox(file_path)
         
         if not temp_link:
             logger.error("[!] Failed to get temporary link for GitHub.")
