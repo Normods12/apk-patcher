@@ -166,7 +166,8 @@ async def process_apk_task(job_id: str, file_path: Path):
 
         # 4. Upload
         logger.info("[*] Uploading to GoFile...")
-        download_link = FileUploader.upload_file(output_path)
+        loop = asyncio.get_event_loop()
+        download_link = await loop.run_in_executor(None, FileUploader.upload_file, output_path)
         if download_link:
             logger.info(f"[OK] Upload successful: {download_link}")
             job.download_url = download_link
@@ -229,7 +230,8 @@ async def auto_cloud_task(job_id: str, file_path: Path):
     try:
         # 1. Upload to Catbox (Direct Link) first to get a link for GitHub
         logger.info(f"[*] AUTO-CLOUD: Uploading {file_path.name} to Catbox for GitHub...")
-        temp_link = FileUploader.upload_to_catbox(file_path)
+        loop = asyncio.get_event_loop()
+        temp_link = await loop.run_in_executor(None, FileUploader.upload_to_catbox, file_path)
         
         if not temp_link:
             logger.error("[!] Failed to get temporary link for GitHub.")
