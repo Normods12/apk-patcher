@@ -177,6 +177,10 @@ async def process_apk_task(job_id: str, file_path: Path):
         job.progress = 100
         await manager.broadcast({"type": "job_update", "job": job.dict()})
 
+        # --- Send to Telegram even for Local jobs ---
+        if download_link:
+            await send_telegram_direct(f"✅ <b>Local Patch Success!</b>\n\n📦 <b>File:</b> {file_path.name}\n📥 <a href='{download_link}'>Download from GoFile</a>")
+
     except Exception as e:
         logger.exception(f"Error processing job {job_id}: {e}")
         job.status = "Failed"
@@ -292,6 +296,17 @@ async def trigger_github_endpoint(url: str = Form(...)):
     jobs[job_id] = job
     await trigger_github_internal(url, job_id)
     return {"job_id": job_id}
+
+async def send_telegram_direct(text: str):
+    token = os.getenv("TELEGRAM_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    if token and chat_id:
+        try:
+            import requests
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            requests.post(url, data={"chat_id": chat_id, "text": text, "parse_mode": "HTML"})
+        except:
+            pass
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8080)
