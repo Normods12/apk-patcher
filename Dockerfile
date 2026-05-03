@@ -18,5 +18,5 @@ COPY . .
 EXPOSE 8080
 
 # Command to run the application
-# Use gunicorn with uvicorn workers for production stability
-CMD ["gunicorn", "dashboard_v2:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8080"]
+# Use uvicorn directly for better error logs on Render
+CMD ["uvicorn", "dashboard_v2:app", "--host", "0.0.0.0", "--port", "8080"]
