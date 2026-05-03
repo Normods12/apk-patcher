@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APK Modding Dashboard | PRO</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #08090a;
+            --card-bg: rgba(20, 22, 26, 0.7);
+            --accent-primary: #00f2ff;
+            --accent-secondary: #7000ff;
+            --text-main: #e0e0e0;
+            --text-muted: #888;
+            --success: #00ff88;
+            --warning: #ffaa00;
+            --error: #ff4444;
+            --console-bg: #000;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(112, 0, 255, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(0, 242, 255, 0.1) 0%, transparent 40%);
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 2rem;
+        }
+
+        @media (max-width: 900px) {
+            .container { grid-template-columns: 1fr; }
+        }
+
+        header {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            background: linear-gradient(to right, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            background: rgba(0, 255, 136, 0.1);
+            color: var(--success);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.5; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Dashboard Cards */
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 24px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Upload Area */
+        .drop-zone {
+            border: 2px dashed rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 3rem 2rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            margin-bottom: 1rem;
+        }
+
+        .drop-zone:hover, .drop-zone.active {
+            border-color: var(--accent-primary);
+            background: rgba(0, 242, 255, 0.05);
+        }
+
+        .drop-zone-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        .drop-zone-text {
+            font-size: 1rem;
+            color: var(--text-muted);
+        }
+
+        .btn {
+            background: linear-gradient(45deg, var(--accent-primary), var(--accent-secondary));
+            border: none;
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.9rem;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 242, 255, 0.3);
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .input-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 1rem;
+            border-radius: 12px;
+            color: white;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--accent-primary);
+        }
+
+        /* Console */
+        .console {
+            background: var(--console-bg);
+            border-radius: 20px;
+            padding: 1rem;
+            height: 400px;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        .console-line { margin-bottom: 0.2rem; }
+        .log-info { color: var(--text-main); }
+        .log-success { color: var(--success); }
+        .log-error { color: var(--error); font-weight: bold; }
+        .log-warning { color: var(--warning); }
+        .log-timestamp { color: var(--text-muted); margin-right: 10px; }
+
+        /* History */
+        .job-item {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .job-item:hover {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .job-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        .job-id { font-size: 0.75rem; color: var(--text-muted); }
+        .job-status { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+        .status-completed { color: var(--success); }
+        .status-processing { color: var(--accent-primary); }
+        .status-failed { color: var(--error); }
+
+        .job-name {
+            font-size: 0.95rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 0.8rem;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 0.8rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(to right, var(--accent-primary), var(--accent-secondary));
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        .job-download {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .tab {
+            padding: 0.5rem 1rem;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            color: var(--text-muted);
+            border: 1px solid transparent;
+        }
+
+        .tab.active {
+            color: var(--accent-primary);
+            background: rgba(0, 242, 255, 0.1);
+            border-color: rgba(0, 242, 255, 0.2);
+        }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">APKMODZ PRO</div>
+            <div class="status-badge">
+                <div class="status-dot"></div>
+                SYSTEM ONLINE
+            </div>
+        </header>
+
+        <main>
+            <div class="card" style="margin-bottom: 2rem;">
+                <div class="card-title">🚀 Patch New APK</div>
+                
+                <div class="tabs">
+                    <div class="tab active" onclick="switchTab('local')">LOCAL PATCH</div>
+                    <div class="tab" onclick="switchTab('github')">GITHUB ONLINE</div>
+                </div>
+
+                <div id="local-tab">
+                    <div class="drop-zone" id="drop-zone">
+                        <span class="drop-zone-icon">📁</span>
+                        <span class="drop-zone-text">Drag & drop APK or click to upload</span>
+                        <input type="file" id="file-input" style="display: none" accept=".apk">
+                    </div>
+                </div>
+
+                <div id="github-tab" style="display: none;">
+                    <div class="input-group">
+                        <label class="input-label">REMOTE APK URL</label>
+                        <input type="text" id="remote-url" placeholder="https://example.com/app.apk">
+                    </div>
+                    <button class="btn" onclick="triggerGithub()">Trigger GitHub Action</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">🖥️ Live System Logs</div>
+                <div class="console" id="console">
+                    <div class="console-line"><span class="log-timestamp">[12:45:01]</span> <span class="log-info">Ready to process. Waiting for input...</span></div>
+                </div>
+            </div>
+        </main>
+
+        <aside>
+            <div class="card" style="height: 100%;">
+                <div class="card-title">🕒 Recent Jobs</div>
+                <div id="job-list">
+                    <!-- Jobs will appear here -->
+                    <div style="text-align: center; color: var(--text-muted); padding: 2rem; font-size: 0.9rem;">
+                        No recent activity
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+        const consoleEl = document.getElementById('console');
+        const jobListEl = document.getElementById('job-list');
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'log') {
+                appendLog(data.content);
+            } else if (data.type === 'job_update') {
+                updateJobUI(data.job);
+            }
+        };
+
+        function appendLog(text) {
+            const div = document.createElement('div');
+            div.className = 'console-line';
+            
+            let typeClass = 'log-info';
+            if (text.includes('[OK]') || text.includes('success')) typeClass = 'log-success';
+            if (text.includes('[!]') || text.includes('Error') || text.includes('Failed')) typeClass = 'log-error';
+            if (text.includes('[*]')) typeClass = 'log-warning';
+
+            const time = new Date().toLocaleTimeString();
+            div.innerHTML = `<span class="log-timestamp">[${time}]</span> <span class="${typeClass}">${text}</span>`;
+            consoleEl.appendChild(div);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        function updateJobUI(job) {
+            let jobEl = document.getElementById(`job-${job.id}`);
+            if (!jobEl) {
+                if (jobListEl.innerText.includes('No recent activity')) jobListEl.innerHTML = '';
+                jobEl = document.createElement('div');
+                jobEl.id = `job-${job.id}`;
+                jobEl.className = 'job-item';
+                jobListEl.prepend(jobEl);
+            }
+
+            const statusClass = `status-${job.status.toLowerCase()}`;
+            jobEl.innerHTML = `
+                <div class="job-header">
+                    <span class="job-id">#${job.id}</span>
+                    <span class="job-status ${statusClass}">${job.status}</span>
+                </div>
+                <div class="job-name">${job.filename}</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${job.progress}%"></div>
+                </div>
+                ${job.download_url ? `<a href="${job.download_url}" target="_blank" class="job-download">📥 Download Result</a>` : ''}
+            `;
+        }
+
+        // Tabs
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            document.getElementById('local-tab').style.display = tab === 'local' ? 'block' : 'none';
+            document.getElementById('github-tab').style.display = tab === 'github' ? 'block' : 'none';
+        }
+
+        // File Upload
+        dropZone.onclick = () => fileInput.click();
+        fileInput.onchange = (e) => uploadFile(e.target.files[0]);
+
+        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('active'); };
+        dropZone.ondragleave = () => dropZone.classList.remove('active');
+        dropZone.ondrop = (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('active');
+            if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0]);
+        };
+
+        async function uploadFile(file) {
+            if (!file) return;
+            appendLog(`[*] Preparing to upload: ${file.name}`);
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const resp = await fetch('/upload', { method: 'POST', body: formData });
+                const data = await resp.json();
+                appendLog(`[OK] Job created: ${data.job_id}`);
+            } catch (err) {
+                appendLog(`[!] Upload failed: ${err}`);
+            }
+        }
+
+        async function triggerGithub() {
+            const url = document.getElementById('remote-url').value;
+            if (!url) return alert('Please enter a URL');
+            
+            appendLog(`[*] Triggering GitHub for: ${url}`);
+            const formData = new FormData();
+            formData.append('url', url);
+
+            try {
+                const resp = await fetch('/trigger-github', { method: 'POST', body: formData });
+                const data = await resp.json();
+                appendLog(`[OK] GitHub Job created: ${data.job_id}`);
+            } catch (err) {
+                appendLog(`[!] Trigger failed: ${err}`);
+            }
+        }
+    </script>
+</body>
+</html>
