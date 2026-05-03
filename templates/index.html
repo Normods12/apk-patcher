@@ -292,6 +292,25 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+        .mode-btn {
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            color: var(--text-muted);
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+        }
+
+        .mode-btn.active {
+            color: #fff;
+            background: linear-gradient(45deg, var(--accent-primary), var(--accent-secondary));
+            border-color: transparent;
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.3);
+        }
     </style>
 </head>
 <body>
@@ -308,17 +327,17 @@
             <div class="card" style="margin-bottom: 2rem;">
                 <div class="card-title">🚀 Patch New APK</div>
                 
-                <div class="tabs">
-                    <div class="tab active" onclick="switchTab('local')">LOCAL PATCH</div>
-                    <div class="tab" onclick="switchTab('github')">GITHUB ONLINE</div>
+                <div class="tabs tabs-main">
+                    <div class="tab active" onclick="switchTab('local', event)">PATCHING HUB</div>
+                    <div class="tab" onclick="switchTab('github', event)">LINK TO CLOUD</div>
                 </div>
 
                 <div id="local-tab">
-                    <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: center; background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 12px;">
-                        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">PROCESSING MODE:</span>
-                        <div class="tabs" style="margin-bottom: 0;">
-                            <div class="tab active" id="mode-local" onclick="setMode('local')">PC (FAST)</div>
-                            <div class="tab" id="mode-github" onclick="setMode('github')">GITHUB (CLOUD)</div>
+                    <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: center; background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+                        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); margin-left: 0.5rem;">ENGINE:</span>
+                        <div class="tabs-mode" style="display: flex; gap: 0.5rem;">
+                            <div class="mode-btn active" id="mode-local" onclick="setMode('local')">LOCAL PC</div>
+                            <div class="mode-btn" id="mode-github" onclick="setMode('github')">GITHUB CLOUD</div>
                         </div>
                     </div>
                     <div class="drop-zone" id="drop-zone">
@@ -414,8 +433,8 @@
         }
 
         // Tabs
-        function switchTab(tab) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        function switchTab(tab, event) {
+            document.querySelectorAll('.tabs-main .tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
             
             document.getElementById('local-tab').style.display = tab === 'local' ? 'block' : 'none';
