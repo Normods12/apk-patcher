@@ -68,37 +68,37 @@ jobs:
 
       - name: Send Telegram Notification
         if: always() && env.DOWNLOAD_LINK != ''
+        shell: python
         run: |
-          CHAT_ID="${{ github.event.client_payload.telegram_chat_id || secrets.TELEGRAM_CHAT_ID }}"
-          TOKEN="${{ github.event.client_payload.telegram_token || secrets.TELEGRAM_TOKEN }}"
-          FILE_URL="${{ github.event.client_payload.url || github.event.inputs.url }}"
+          import os, requests
+          token = os.environ.get('TELEGRAM_TOKEN') or "${{ secrets.TELEGRAM_TOKEN }}"
+          chat_id = os.environ.get('TELEGRAM_CHAT_ID') or "${{ secrets.TELEGRAM_CHAT_ID }}"
+          file_url = "${{ github.event.client_payload.url || github.event.inputs.url }}"
+          download_link = os.environ.get('DOWNLOAD_LINK')
           
-          if [ -n "$TOKEN" ] && [ -n "$CHAT_ID" ]; then
-            curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-              -d "chat_id=$CHAT_ID" \
-              -d "parse_mode=HTML" \
-              -d "disable_web_page_preview=false" \
-              --data-urlencode "text=<b>✅ APK Patched &amp; Signed!</b>
-
-📦 <b>File:</b> $FILE_URL
-
-📥 <a href='${{ env.DOWNLOAD_LINK }}'>Click here to Download from GoFile</a>"
-          fi
+          if token and chat_id:
+              msg = f"<b>✅ APK Patched & Signed!</b>\n\n📦 <b>File:</b> {file_url}\n\n📥 <a href='{download_link}'>Click here to Download from GoFile</a>"
+              r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage", 
+                            data={"chat_id": chat_id, "text": msg, "parse_mode": "HTML", "disable_web_page_preview": "false"})
+              print(f"Status: {r.status_code}, Response: {r.text}")
+        env:
+          TELEGRAM_TOKEN: ${{ github.event.client_payload.telegram_token }}
+          TELEGRAM_CHAT_ID: ${{ github.event.client_payload.telegram_chat_id }}
 
       - name: Send Telegram Failure Notification
         if: failure()
+        shell: python
         run: |
-          CHAT_ID="${{ github.event.client_payload.telegram_chat_id || secrets.TELEGRAM_CHAT_ID }}"
-          TOKEN="${{ github.event.client_payload.telegram_token || secrets.TELEGRAM_TOKEN }}"
-          FILE_URL="${{ github.event.client_payload.url || github.event.inputs.url }}"
-
-          if [ -n "$TOKEN" ] && [ -n "$CHAT_ID" ]; then
-            curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-              -d "chat_id=$CHAT_ID" \
-              -d "parse_mode=HTML" \
-              --data-urlencode "text=❌ <b>GitHub Patching Failed!</b>
-
-📦 <b>File:</b> $FILE_URL
-
-⚠️ Please check GitHub Actions logs for details."
-          fi
+          import os, requests
+          token = os.environ.get('TELEGRAM_TOKEN') or "${{ secrets.TELEGRAM_TOKEN }}"
+          chat_id = os.environ.get('TELEGRAM_CHAT_ID') or "${{ secrets.TELEGRAM_CHAT_ID }}"
+          file_url = "${{ github.event.client_payload.url || github.event.inputs.url }}"
+          
+          if token and chat_id:
+              msg = f"❌ <b>GitHub Patching Failed!</b>\n\n📦 <b>File:</b> {file_url}\n\n⚠️ Please check GitHub Actions logs for details."
+              r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage", 
+                            data={"chat_id": chat_id, "text": msg, "parse_mode": "HTML"})
+              print(f"Status: {r.status_code}, Response: {r.text}")
+        env:
+          TELEGRAM_TOKEN: ${{ github.event.client_payload.telegram_token }}
+          TELEGRAM_CHAT_ID: ${{ github.event.client_payload.telegram_chat_id }}
