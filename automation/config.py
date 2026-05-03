@@ -66,10 +66,9 @@ DOWNLOAD_HARD_TIMEOUT_SECONDS = int(os.getenv("DOWNLOAD_HARD_TIMEOUT_SECONDS", "
 
 # Configure logging
 logging.basicConfig(
-    level=logging.DEBUG,  # Set to DEBUG for detailed logs
+    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(LOG_DIR / "debug.log"),
         logging.StreamHandler()
     ]
 )

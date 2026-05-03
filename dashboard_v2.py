@@ -25,24 +25,8 @@ if str(BASE_DIR) not in sys.path:
 # Load .env
 load_dotenv(BASE_DIR / ".env")
 
-# --- DEBUG BLOCK ---
-try:
-    import replace_last_dex
-    from automation.services.uploader import FileUploader
-    print("[OK] All modules loaded successfully.")
-except ImportError as e:
-    import os, sys
-    print("\n" + "!"*50)
-    print("!!! IMPORT ERROR DIAGNOSTIC !!!")
-    print(f"Error: {e}")
-    print(f"Current Working Dir: {os.getcwd()}")
-    print(f"PYTHONPATH: {sys.path}")
-    print(f"Root Files: {os.listdir('.')}")
-    if os.path.exists('automation'):
-        print(f"Automation Files: {os.listdir('automation')}")
-    print("!"*50 + "\n")
-    raise e
-# ------------------
+import replace_last_dex
+from automation.services.uploader import FileUploader
 
 app = FastAPI(title="APK Patching Dashboard")
 
