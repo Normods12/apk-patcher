@@ -13,3 +13,9 @@ node_modules/
 *.apk
 *.dex
 !Dex-to-add/classes.dex
+automation/data/
+automation/logs/
+automation/input_files/
+automation/output_files/
+automation/locks/
+automation/__pycache__/
