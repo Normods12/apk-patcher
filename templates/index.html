@@ -314,6 +314,13 @@
                 </div>
 
                 <div id="local-tab">
+                    <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: center; background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 12px;">
+                        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">PROCESSING MODE:</span>
+                        <div class="tabs" style="margin-bottom: 0;">
+                            <div class="tab active" id="mode-local" onclick="setMode('local')">PC (FAST)</div>
+                            <div class="tab" id="mode-github" onclick="setMode('github')">GITHUB (CLOUD)</div>
+                        </div>
+                    </div>
                     <div class="drop-zone" id="drop-zone">
                         <span class="drop-zone-icon">📁</span>
                         <span class="drop-zone-text">Drag & drop APK or click to upload</span>
@@ -427,11 +434,21 @@
             if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0]);
         };
 
+        let currentMode = 'local';
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('mode-local').classList.toggle('active', mode === 'local');
+            document.getElementById('mode-github').classList.toggle('active', mode === 'github');
+            appendLog(`[*] Mode switched to: ${mode.toUpperCase()}`);
+        }
+
         async function uploadFile(file) {
             if (!file) return;
-            appendLog(`[*] Preparing to upload: ${file.name}`);
+            appendLog(`[*] Preparing upload: ${file.name} (Mode: ${currentMode.toUpperCase()})`);
             const formData = new FormData();
             formData.append('file', file);
+            formData.append('mode', currentMode);
 
             try {
                 const resp = await fetch('/upload', { method: 'POST', body: formData });

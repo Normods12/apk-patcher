@@ -181,7 +181,7 @@ async def process_apk_task(job_id: str, file_path: Path):
 @app.get("/", response_class=HTMLResponse)
 async def get_index():
     template_path = BASE_DIR / "templates" / "index.html"
-    return template_path.read_text()
+    return template_path.read_text(encoding="utf-8")
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -193,7 +193,7 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 @app.post("/upload")
-async def upload_apk(file: UploadFile = File(...)):
+async def upload_apk(file: UploadFile = File(...), mode: str = Form("local")):
     job_id = str(uuid.uuid4())[:8]
     file_path = INPUT_DIR / file.filename
     
@@ -203,32 +203,55 @@ async def upload_apk(file: UploadFile = File(...)):
     job = Job(
         id=job_id,
         filename=file.filename,
-        created_at=datetime.now().strftime("%H:%M:%S")
+        created_at=datetime.now().strftime("%H:%M:%S"),
+        status="Uploading to Cloud" if mode == "github" else "Pending"
     )
     jobs[job_id] = job
     
     # Start task in background
-    asyncio.create_task(process_apk_task(job_id, file_path))
+    if mode == "github":
+        asyncio.create_task(auto_cloud_task(job_id, file_path))
+    else:
+        asyncio.create_task(process_apk_task(job_id, file_path))
     
     return {"job_id": job_id}
 
-@app.post("/trigger-github")
-async def trigger_github(url: str = Form(...)):
-    # Placeholder for GitHub Trigger logic
-    job_id = f"GH-{str(uuid.uuid4())[:5]}"
-    logger.info(f"[*] Triggering GitHub Action for: {url}")
-    
-    job = Job(
-        id=job_id,
-        filename="Remote APK",
-        status="GitHub Triggered",
-        created_at=datetime.now().strftime("%H:%M:%S")
-    )
-    jobs[job_id] = job
-    
-    # Actually trigger GitHub via API if Token is present
+async def auto_cloud_task(job_id: str, file_path: Path):
+    job = jobs[job_id]
+    try:
+        # 1. Upload to GoFile first to get a link for GitHub
+        logger.info(f"[*] AUTO-CLOUD: Uploading {file_path.name} to GoFile for GitHub...")
+        temp_link = FileUploader.upload_file(file_path)
+        
+        if not temp_link:
+            logger.error("[!] Failed to get temporary link for GitHub.")
+            job.status = "Failed"
+            await manager.broadcast({"type": "job_update", "job": job.dict()})
+            return
+
+        # 2. Trigger GitHub Action
+        logger.info(f"[OK] Temporary link: {temp_link}. Triggering GitHub...")
+        job.status = "GitHub Triggered"
+        job.progress = 50
+        await manager.broadcast({"type": "job_update", "job": job.dict()})
+        
+        # Call the existing trigger logic
+        await trigger_github_internal(temp_link, job_id)
+        
+        job.progress = 100
+        job.status = "Sent to Cloud"
+        await manager.broadcast({"type": "job_update", "job": job.dict()})
+
+    except Exception as e:
+        logger.error(f"Auto-cloud error: {e}")
+        job.status = "Failed"
+        await manager.broadcast({"type": "job_update", "job": job.dict()})
+
+async def trigger_github_internal(url: str, job_id: str = None):
     token = os.getenv("GITHUB_TOKEN")
     repo = os.getenv("GITHUB_REPO")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    bot_token = os.getenv("TELEGRAM_TOKEN")
     
     if token and repo:
         try:
@@ -240,19 +263,31 @@ async def trigger_github(url: str = Form(...)):
             }
             payload = {
                 "event_type": "patch_apk",
-                "client_payload": {"url": url}
+                "client_payload": {
+                    "url": url,
+                    "telegram_chat_id": chat_id,
+                    "telegram_token": bot_token
+                }
             }
             resp = requests.post(gh_url, json=payload, headers=headers)
             if resp.status_code == 204:
                 logger.info("[OK] GitHub Action triggered successfully.")
+                return True
             else:
                 logger.error(f"[!] GitHub API Error: {resp.status_code} - {resp.text}")
         except Exception as e:
             logger.error(f"[!] Failed to trigger GitHub: {e}")
     else:
-        logger.warning("[!] GITHUB_TOKEN or GITHUB_REPO not set in .env. Action not triggered.")
+        logger.warning("[!] GITHUB_TOKEN or GITHUB_REPO not set. Action not triggered.")
+    return False
 
+@app.post("/trigger-github")
+async def trigger_github_endpoint(url: str = Form(...)):
+    job_id = f"GH-{str(uuid.uuid4())[:5]}"
+    job = Job(id=job_id, filename="Remote APK", created_at=datetime.now().strftime("%H:%M:%S"))
+    jobs[job_id] = job
+    await trigger_github_internal(url, job_id)
     return {"job_id": job_id}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8080)

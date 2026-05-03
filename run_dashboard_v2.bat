@@ -2,6 +2,6 @@
 setlocal
 cd /d "%~dp0"
 echo Starting Premium APK Automation Dashboard...
-echo Open http://localhost:8000 in your browser.
+echo Open http://127.0.0.1:8080 in your browser.
 python dashboard_v2.py
 pause
